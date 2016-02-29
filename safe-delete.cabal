@@ -15,16 +15,37 @@ build-type:          Simple
 -- extra-source-files:  
 cabal-version:       >=1.10
 
-executable safe-delete
+library
+  hs-source-dirs:      src
+  exposed-modules:     Witness
+  build-depends:       base >= 4.8 && < 4.9
+                     , bytestring >= 0.10.6.0
+                     , directory >= 1.2.2.0
+                     , filepath >= 1.4.0.0
+                     , unix >= 2.7.1.0
+  default-language:    Haskell2010
+
+executable safe-delete-exe
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.8 && <4.9
-                     , bytestring >= 0.10.6.0
-                     , directory >= 1.2.2.0
-                     , filepath >= 1.4.0.0
+                     , optparse-applicative >= 0.11.0.2
+                     , safe-delete
                      , text >= 1.2.1.3
-                     , turtle >= 1.2.1
+  hs-source-dirs:      app
+  default-language:    Haskell2010
+  ghc-options:         -rtsopts -Wall -threaded
+
+test-suite safe-delete-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Test.hs
+  build-depends:       base
+                     , bytestring >= 0.10.6.0
+                     , filepath >= 1.4.0.0
+                     , random >= 1.1
+                     , safe-delete
+                     , temporary >= 1.2.0.3
                      , unix >= 2.7.1.0
-  hs-source-dirs:      src
   default-language:    Haskell2010

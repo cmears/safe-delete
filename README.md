@@ -5,7 +5,7 @@ exists.  Can be used to remove duplicate files safely.
 
 A file is deleted only if a "witness" for that file is found.  A
 witness is another file with the same contents.  Symbolic links are
-never followed.
+never followed, except for specifying the base directory.
 
 Usage:
 

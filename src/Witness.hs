@@ -1,35 +1,14 @@
-{-# LANGUAGE OverloadedStrings #-}
+module Witness where
 
-module Main where
-
-import           Control.Exception
 import           Control.Monad
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.Text            as T
 import           System.Directory
-import           System.Environment
 import           System.FilePath
 import           System.IO.Error
 import           System.Posix.Files
-import           Turtle.Options
 
-main :: IO ()
-main = do
-  opts <- options "safe-delete" optionsParser
-  print =<< getArgs
-  return ()
+import System.IO
 
-data Options = Options {
-    optionBaseDir :: FilePath
-  , optionDryRun :: Bool
-}
-
-optString = opt (Just . T.unpack)
-
-optionsParser :: Parser Options
-optionsParser =
-  Options <$> optString "base" 'b' "Base directory to search for witnesses"
-          <*> switch "dry-run" 'n' "Don't delete any files"
 
 -- Finds a witness for the target file in the subtree rooted at the
 -- given base directory.  The result is relative to the base
@@ -42,9 +21,11 @@ findWitness target baseDir = do
                             else e)
                      (getFileStatus baseDir)
   when (not (isDirectory baseDirStatus)) $ do
-    ioError (userError "base directory not a directory")
+    ioError (userError "base directory is not a directory")
 
-  targetStatus <- getFileStatus target
+  targetStatus <- getSymbolicLinkStatus target
+  when (isSymbolicLink targetStatus) $ do
+    ioError (userError ("target is symbolic link: " ++ target))
 
   contents <- getDirectoryContentsFiltered baseDir
 
@@ -53,8 +34,8 @@ findWitness target baseDir = do
 type Target = (FilePath, FileStatus)
 
 hunt :: Target -> [FilePath] -> IO (Maybe FilePath)
-hunt target [] = return Nothing
-hunt target (path:paths) = do
+hunt _target [] = return Nothing
+hunt target  (path:paths) = do
   pathStatus <- getSymbolicLinkStatus path
   -- Completely ignore symbolic links, whether they point to files or
   -- directories.
@@ -76,22 +57,25 @@ hunt target (path:paths) = do
 -- Does the target match the given path?
 check :: Target -> (FilePath, FileStatus) -> IO Bool
 check (targetPath, targetStatus) (path, pathStatus) = do
-  putStrLn $ "checking " ++ path
-  -- If somehow the target and the path are the same file, something
-  -- has gone wrong.
-  when (fileID targetStatus == fileID pathStatus) $ do
-    ioError (userError ("target file found within base directory (" ++ path ++ ")"))
-
-  -- The file sizes must match.
-  case fileSize targetStatus == fileSize pathStatus of
-    False -> return False
-    True -> do
-      -- The file contents must match.
-      matchingContents targetPath path
+  -- putStrLn $ "checking " ++ path
+  -- If somehow the target and the path are the same file, return
+  -- not-a-witness.  This can happen if the potential match is a
+  -- hardlink to the target file.
+  if fileID targetStatus == fileID pathStatus
+    then return False
+    else
+      -- The file sizes must match.
+      case fileSize targetStatus == fileSize pathStatus of
+        False -> return False
+        True -> do
+          -- The file contents must match.
+          matchingContents targetPath path
 
 -- Are the contents of these two files the same?
 matchingContents :: FilePath -> FilePath -> IO Bool
 matchingContents path1 path2 = do
+  putStrLn ("matchingContents: " ++ path1 ++ " " ++ path2)
+  hFlush stdout
   contents1 <- BSL.readFile path1
   contents2 <- BSL.readFile path2
   return (contents1 == contents2)
