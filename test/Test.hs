@@ -14,6 +14,8 @@ main = do
   test2
   test3
   test4
+  test5
+  test6
 
 -- Simple test: make sure we can find a witness.
 test1 :: IO ()
@@ -47,7 +49,7 @@ test3 = do
     changeWorkingDirectory tempdir
     createDirectory "dir" ownerModes
     createRandomFile "abc"
-    createSymbolicLink ("abc") ("dir" </> "link")
+    createSymbolicLink (".." </> "abc") ("dir" </> "link")
     copyFile "abc" "def"
     shouldBeNothing =<< findWitness "def" "dir"
   putStrLn "test3 OK"
@@ -62,6 +64,31 @@ test4 = do
     createLink "abc" ("dir" </> "link")
     shouldBeNothing =<< findWitness "abc" "dir"
   putStrLn "test4 OK"
+
+-- Make sure we don't follow symlinks to directories during witness
+-- search.
+test5 :: IO ()
+test5 = do
+  withTempDirectory "." "tempXXX" $ \tempdir -> do
+    changeWorkingDirectory tempdir
+    createDirectory "dir" ownerModes
+    createRandomFile ("dir" </> "abc")
+    createDirectory "base" ownerModes
+    createSymbolicLink (".." </> "dir" </> "abc") ("base" </> "link")
+    copyFile ("dir" </> "abc") "target"
+    shouldBeNothing =<< findWitness "target" "base"
+  putStrLn "test5 OK"
+
+-- Make sure we don't use a file as its own witness.
+test6 :: IO ()
+test6 = do
+  withTempDirectory "." "tempXXX" $ \tempdir -> do
+    changeWorkingDirectory tempdir
+    createDirectory "dir" ownerModes
+    createRandomFile ("dir" </> "abc")
+    shouldBeNothing =<< findWitness ("dir" </> "abc") "dir"
+  putStrLn "test6 OK"
+    
 
 createRandomFile :: FilePath -> IO ()
 createRandomFile path = do

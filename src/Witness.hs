@@ -7,7 +7,7 @@ import           System.FilePath
 import           System.IO.Error
 import           System.Posix.Files
 
-import System.IO
+import           System.IO
 
 
 -- Finds a witness for the target file in the subtree rooted at the
@@ -57,7 +57,6 @@ hunt target  (path:paths) = do
 -- Does the target match the given path?
 check :: Target -> (FilePath, FileStatus) -> IO Bool
 check (targetPath, targetStatus) (path, pathStatus) = do
-  -- putStrLn $ "checking " ++ path
   -- If somehow the target and the path are the same file, return
   -- not-a-witness.  This can happen if the potential match is a
   -- hardlink to the target file.
@@ -74,11 +73,18 @@ check (targetPath, targetStatus) (path, pathStatus) = do
 -- Are the contents of these two files the same?
 matchingContents :: FilePath -> FilePath -> IO Bool
 matchingContents path1 path2 = do
-  putStrLn ("matchingContents: " ++ path1 ++ " " ++ path2)
-  hFlush stdout
-  contents1 <- BSL.readFile path1
-  contents2 <- BSL.readFile path2
-  return (contents1 == contents2)
+  h1 <- openBinaryFile path1 ReadMode
+  bs1 <- BSL.hGetContents h1
+  h2 <- openBinaryFile path2 ReadMode
+  bs2 <- BSL.hGetContents h2
+  let same = bs1 == bs2
+  -- Forcing the value of "same" will ensure that enough data has been
+  -- read, and it's safe to close the file handles.
+  return $! same
+  hClose h1
+  hClose h2
+  return same
+
 
 -- Get the contents of the given directory, removing "." and "..", and
 -- prepending the directory path to the results.
