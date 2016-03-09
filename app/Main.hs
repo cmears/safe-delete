@@ -10,7 +10,9 @@ import Witness
 main :: IO ()
 main = do
   opts <- execParser (info (helper <*> optionsParser) (progDesc "safe-delete"))
-  forM_ (optionTargets opts) $ \target -> do
+  expandedTargets <- concat <$> mapM expandTarget (optionTargets opts)
+
+  forM_ expandedTargets $ \target -> do
     maybeWitness <- findWitness target (optionBaseDir opts)
     case maybeWitness of
       Nothing -> putStrLn ("no witness for " ++ target)

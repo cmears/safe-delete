@@ -97,3 +97,19 @@ getDirectoryContentsFiltered path = do
   where f "." = False
         f ".." = False
         f _ = True
+
+-- Expand the given target into zero or more real targets.  Symbolic
+-- links are discarded.  Directories are explored recursively.  Only
+-- files are returned.
+expandTarget :: FilePath -> IO [FilePath]
+expandTarget filepath = do
+  pathStatus <- getSymbolicLinkStatus filepath
+  case isSymbolicLink pathStatus of
+    True -> return []
+    False -> do
+      case isDirectory pathStatus of
+        True -> do
+          contents <- getDirectoryContentsFiltered filepath
+          concat <$> mapM expandTarget contents
+        False -> do
+          return [filepath]
