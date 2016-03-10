@@ -22,6 +22,7 @@ main = do
 data Options = Options {
     optionBaseDir :: FilePath
   , optionDryRun :: Bool
+  , optionFastMatch :: Bool
   , optionTargets :: [FilePath]
 } deriving (Show)
 
@@ -31,4 +32,6 @@ optionsParser =
                 help "Base directory to search for witnesses")
           <*> switch (long "dry-run" <> short 'n' <>
                 help "Don't delete any files")
+          <*> switch (long "fast-match" <> short 'f' <>
+                help "Only match file names and sizes, not contents"
           <*> many (strArgument (metavar "FILE ..."))

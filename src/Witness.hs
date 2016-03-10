@@ -13,8 +13,8 @@ import           System.IO
 -- Finds a witness for the target file in the subtree rooted at the
 -- given base directory.  The result is relative to the base
 -- directory.
-findWitness :: FilePath -> FilePath -> IO (Maybe FilePath)
-findWitness target baseDir = do
+findWitness :: Bool -> FilePath -> FilePath -> IO (Maybe FilePath)
+findWitness fastMatch target baseDir = do
   baseDirStatus <- modifyIOError
                      (\e -> if ioeGetErrorType e == doesNotExistErrorType
                             then userError "base directory does not exist"
@@ -29,34 +29,34 @@ findWitness target baseDir = do
 
   contents <- getDirectoryContentsFiltered baseDir
 
-  hunt (target, targetStatus) contents
+  hunt fastMatch (target, targetStatus) contents
 
 type Target = (FilePath, FileStatus)
 
-hunt :: Target -> [FilePath] -> IO (Maybe FilePath)
-hunt _target [] = return Nothing
-hunt target  (path:paths) = do
+hunt :: Bool -> Target -> [FilePath] -> IO (Maybe FilePath)
+hunt _fastMatch _target [] = return Nothing
+hunt fastMatch target  (path:paths) = do
   pathStatus <- getSymbolicLinkStatus path
   -- Completely ignore symbolic links, whether they point to files or
   -- directories.
   case isSymbolicLink pathStatus of
-    True -> hunt target paths
+    True -> hunt fastMatch target paths
     False -> do
       -- Directories get their contents prepended to the search list
       -- (making a depth-first traversal).  Files get checked.
       case isDirectory pathStatus of
         True -> do
           contents <- getDirectoryContentsFiltered path
-          hunt target (contents ++ paths)
+          hunt fastMatch target (contents ++ paths)
         False -> do
-          result <- check target (path, pathStatus)
+          result <- check fastMatch target (path, pathStatus)
           case result of
             True -> return (Just path)
-            False -> hunt target paths
+            False -> hunt fastMatch target paths
 
 -- Does the target match the given path?
-check :: Target -> (FilePath, FileStatus) -> IO Bool
-check (targetPath, targetStatus) (path, pathStatus) = do
+check :: Bool -> Target -> (FilePath, FileStatus) -> IO Bool
+check fastMatch (targetPath, targetStatus) (path, pathStatus) = do
   -- If somehow the target and the path are the same file, return
   -- not-a-witness.  This can happen if the potential match is a
   -- hardlink to the target file.
@@ -66,9 +66,14 @@ check (targetPath, targetStatus) (path, pathStatus) = do
       -- The file sizes must match.
       case fileSize targetStatus == fileSize pathStatus of
         False -> return False
-        True -> do
-          -- The file contents must match.
-          matchingContents targetPath path
+        True ->
+          if fastMatch
+          then return (sameFileName targetPath path)
+          else matchingContents targetPath path
+
+sameFileName :: FilePath -> FilePath -> Bool
+sameFileName path1 path2 =
+  takeFileName path1 == takeFileName path2
 
 -- Are the contents of these two files the same?
 matchingContents :: FilePath -> FilePath -> IO Bool
@@ -80,7 +85,7 @@ matchingContents path1 path2 = do
   let same = bs1 == bs2
   -- Forcing the value of "same" will ensure that enough data has been
   -- read, and it's safe to close the file handles.
-  return $! same
+  void $ return $! same
   hClose h1
   hClose h2
   return same
