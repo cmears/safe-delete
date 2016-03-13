@@ -23,3 +23,38 @@ Options:
 
   Don't actually delete anything, just report what would be
   deleted.
+
+--fast-match
+
+  When checking for a witness, only look at the filename and the file
+  size to determine a match.  The filename has all directory parts
+  stripped; i.e. only part after the last slash.
+
+
+Examples:
+
+Is it safe to delete file "bigfile"?  That is, does a copy of it
+exist somewhere in the "backup" directory?
+
+  safe-delete bigfile --base backup
+
+As above, but run from the backup directory
+
+  cd backup ; safe-delete ../bigfile
+
+
+Does every file in directory "dir1" have a match in "dir2"?  Use fast
+matching so that just filenames and sizes are checked.
+
+  safe-delete dir1 --base dir2 --fast-match
+
+
+Do these two directories have the same contents, except possibly for
+directory arrangement?
+
+  # Everything in dir1 exists in dir2.
+  safe-delete dir1 --base dir2 --fast-match
+  # Everything in dir2 exists in dir1.
+  safe-delete dir2 --base dir1 --fast-match
+  # And the contents are actually the same.
+  safe-delete dir1 --base dir2
