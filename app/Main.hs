@@ -13,7 +13,7 @@ main = do
   expandedTargets <- concat <$> mapM expandTarget (optionTargets opts)
 
   forM_ expandedTargets $ \target -> do
-    maybeWitness <- findWitness target (optionBaseDir opts)
+    maybeWitness <- findWitness (optionFastMatch opts) target (optionBaseDir opts)
     case maybeWitness of
       Nothing -> putStrLn ("no witness for " ++ target)
       Just w -> putStrLn (w ++ " is witness for " ++ target)
@@ -33,5 +33,5 @@ optionsParser =
           <*> switch (long "dry-run" <> short 'n' <>
                 help "Don't delete any files")
           <*> switch (long "fast-match" <> short 'f' <>
-                help "Only match file names and sizes, not contents"
+                help "Only match file names and sizes, not contents")
           <*> many (strArgument (metavar "FILE ..."))
