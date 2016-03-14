@@ -1,6 +1,7 @@
 import Control.Exception
 import Control.Monad
 import qualified Data.ByteString.Lazy as BSL
+import Data.List
 import System.FilePath
 import System.IO
 import System.IO.Error
@@ -127,7 +128,7 @@ test8 = do
     createDirectory ("dir" </> "dir2") ownerModes
     createRandomFile ("dir" </> "dir2" </> "def")
     paths <- expandTarget "dir"
-    shouldBeEqual paths ["dir/abc","dir/dir2/def"]
+    shouldBeEqual (sort paths) (sort ["dir/abc","dir/dir2/def"])
     putStrLn "test8 OK"
 
 -- Creates a file of 1024 random bytes at the given path.
@@ -168,11 +169,11 @@ shouldBeJust (Just _x) = return ()
 shouldBeJust Nothing = do
   throwIO (userError ("error: shouldBeJust: Nothing"))
 
-shouldBeEqual :: (Eq a) => a -> a -> IO ()
+shouldBeEqual :: (Eq a, Show a) => a -> a -> IO ()
 shouldBeEqual x y =
   if x == y
   then return ()
-  else throwIO (userError ("error: shouldBeEqual: not equal"))
+  else throwIO (userError ("error: shouldBeEqual: " ++ show x ++ " and " ++ show y))
 
 -- Change one byte in a file so that the result is guaranteed to be
 -- different from before.  File must have at least 101 bytes for this
