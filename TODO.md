@@ -22,3 +22,6 @@ Check that the files in matchingContents are actually loaded lazily
 
 Make sure matchingContents actually closes the files.
   (done)
+
+Checking a directory against another could be much faster if the
+metadata of the base directory was cached across targets.

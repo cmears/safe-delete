@@ -12,12 +12,21 @@ main = do
   opts <- execParser (info (helper <*> optionsParser) (progDesc "safe-delete"))
   expandedTargets <- concat <$> mapM expandTarget (optionTargets opts)
 
-  forM_ expandedTargets $ \target -> do
-    maybeWitness <- findWitness (optionFastMatch opts) target (optionBaseDir opts)
-    case maybeWitness of
-      Nothing -> putStrLn ("no witness for " ++ target)
-      Just w -> putStrLn (w ++ " is witness for " ++ target)
-  return ()
+  let numTargets = length expandedTargets
+  putStrLn ("checking " ++ show numTargets ++ " files...")
+
+  let doTarget tally target = do
+        maybeWitness <- findWitness (optionFastMatch opts) target (optionBaseDir opts)
+        case maybeWitness of
+          Nothing -> do putStrLn ("no witness for " ++ target)
+                        return tally
+          Just _ -> return $! tally + 1
+
+  finalTally <- foldM doTarget 0 expandedTargets
+
+  putStrLn ("checked " ++ show numTargets ++ " files")
+  putStrLn ("found " ++ show finalTally ++ " witnesses")
+  putStrLn ("found " ++ show (numTargets - finalTally) ++ " unwitnessed files")  
 
 data Options = Options {
     optionBaseDir :: FilePath
