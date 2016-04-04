@@ -30,6 +30,12 @@ Options:
   size to determine a match.  The filename has all directory parts
   stripped; i.e. only part after the last slash.
 
+--index
+
+  Read the base directory in full and construct an index before
+  searching for any target files.  This should make multiple-target
+  searches much faster, especially in conjunction with --fast-match.
+
 
 Examples:
 

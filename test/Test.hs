@@ -9,6 +9,8 @@ import System.IO.Temp hiding (openNewBinaryFile)
 import System.Posix
 import System.Random
 
+import Files
+import MetadataIndex
 import Witness
 
 main :: IO ()
@@ -49,7 +51,7 @@ test1 = do
     createDirectory "dir" ownerModes
     createRandomFile ("dir" </> "abc")
     copyFile ("dir" </> "abc") "def"
-    shouldBeJust =<< findWitness False "def" "dir"
+    testFindWitness shouldBeJust False "def" "dir"
     putStrLn "test1 OK"
 
 -- Make sure that file contents are checked.  (Makes a proper witness,
@@ -62,7 +64,7 @@ test2 = do
     createLink ("dir" </> "abc") ("dir" </> "link")
     copyFile ("dir" </> "abc") "def"
     alterOneByte "def"
-    shouldBeNothing =<< findWitness False "def" "dir"
+    testFindWitness shouldBeNothing False "def" "dir"
     putStrLn "test2 OK"
 
 -- Make sure we don't use a symbolic link as a witness.
@@ -73,7 +75,7 @@ test3 = do
     createRandomFile "abc"
     createSymbolicLink (".." </> "abc") ("dir" </> "link")
     copyFile "abc" "def"
-    shouldBeNothing =<< findWitness False "def" "dir"
+    testFindWitness shouldBeNothing False "def" "dir"
     putStrLn "test3 OK"
 
 -- Make sure we don't use a hard link as a witness.
@@ -83,7 +85,7 @@ test4 = do
     createDirectory "dir" ownerModes
     createRandomFile "abc"
     createLink "abc" ("dir" </> "link")
-    shouldBeNothing =<< findWitness False "abc" "dir"
+    testFindWitness shouldBeNothing False "abc" "dir"
     putStrLn "test4 OK"
 
 -- Make sure we don't follow symlinks to directories during witness
@@ -96,7 +98,7 @@ test5 = do
     createDirectory "base" ownerModes
     createSymbolicLink (".." </> "dir" </> "abc") ("base" </> "link")
     copyFile ("dir" </> "abc") "target"
-    shouldBeNothing =<< findWitness False "target" "base"
+    testFindWitness shouldBeNothing False "target" "base"
     putStrLn "test5 OK"
 
 -- Make sure we don't use a file as its own witness.
@@ -105,7 +107,7 @@ test6 = do
   inTempDirectory $ do
     createDirectory "dir" ownerModes
     createRandomFile ("dir" </> "abc")
-    shouldBeNothing =<< findWitness False ("dir" </> "abc") "dir"
+    testFindWitness shouldBeNothing False ("dir" </> "abc") "dir"
     putStrLn "test6 OK"
 
 -- Make sure fast checking doesn't look at file contents.
@@ -115,8 +117,14 @@ test7 = do
     createDirectory "dir" ownerModes
     createRandomFile ("dir" </> "abc")
     createRandomFile "abc"
-    shouldBeJust =<< findWitness True "abc" "dir"
+    testFindWitness shouldBeJust True "abc" "dir"
     putStrLn "test7 OK"
+
+testFindWitness :: (Maybe FilePath -> IO b) -> Bool -> FilePath -> FilePath -> IO ()
+testFindWitness expectedResult fastCheck target baseDir = do
+  void (expectedResult =<< findWitness fastCheck Nothing target baseDir)
+  idx <- buildIndex baseDir
+  void (expectedResult =<< findWitness fastCheck (Just idx) target baseDir)
 
 -- Make sure expandTarget gives the right result.
 test8 :: IO ()
@@ -134,10 +142,10 @@ test8 = do
 -- Creates a file of 1024 random bytes at the given path.
 createRandomFile :: FilePath -> IO ()
 createRandomFile path = do
-  handle <- openNewBinaryFile path
+  h <- openNewBinaryFile path
   contents <- BSL.pack <$> replicateM 1024 randomIO
-  BSL.hPut handle contents
-  hClose handle
+  BSL.hPut h contents
+  hClose h
 
 -- Copies a file from src to dst, possibly overwriting dst.
 copyFile :: FilePath -> FilePath -> IO ()

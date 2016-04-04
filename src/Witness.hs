@@ -2,19 +2,20 @@ module Witness where
 
 import           Control.Monad
 import qualified Data.ByteString.Lazy as BSL
-import           System.Directory
 import           System.FilePath
 import           System.IO.Error
 import           System.Posix.Files
-
 import           System.IO
+
+import           Files
+import           MetadataIndex
 
 
 -- Finds a witness for the target file in the subtree rooted at the
 -- given base directory.  The result is relative to the base
 -- directory.
-findWitness :: Bool -> FilePath -> FilePath -> IO (Maybe FilePath)
-findWitness fastMatch target baseDir = do
+findWitness :: Bool -> Maybe MetadataIndex -> FilePath -> FilePath -> IO (Maybe FilePath)
+findWitness fastMatch maybeIndex target baseDir = do
   baseDirStatus <- modifyIOError
                      (\e -> if ioeGetErrorType e == doesNotExistErrorType
                             then userError "base directory does not exist"
@@ -29,13 +30,28 @@ findWitness fastMatch target baseDir = do
 
   contents <- getDirectoryContentsFiltered baseDir
 
-  hunt fastMatch (target, targetStatus) contents
+  case maybeIndex of
+    -- No index: ordinary filesystem traversal
+    Nothing -> hunt fastMatch (target, targetStatus) contents
+    -- Index: use it to find potential matches
+    Just idx ->
+      let potentialMatches = lookupIndex (makeKey target targetStatus) idx
+      in findM (\pm -> do
+                  pmStatus <- getSymbolicLinkStatus pm
+                  check fastMatch (target, targetStatus) (pm, pmStatus))
+           potentialMatches
+
+-- Find the first element for which the monadic predicate returns
+-- True.  Stops executing after finding the first such element.
+findM :: Monad m => (a -> m Bool) -> [a] -> m (Maybe a)
+findM _f [] = return Nothing
+findM  f (a:as) = f a >>= \b -> if b then return (Just a) else findM f as
 
 type Target = (FilePath, FileStatus)
 
 hunt :: Bool -> Target -> [FilePath] -> IO (Maybe FilePath)
 hunt _fastMatch _target [] = return Nothing
-hunt fastMatch target  (path:paths) = do
+hunt  fastMatch  target (path:paths) = do
   pathStatus <- getSymbolicLinkStatus path
   -- Completely ignore symbolic links, whether they point to files or
   -- directories.
@@ -90,31 +106,3 @@ matchingContents path1 path2 = do
   hClose h2
   return same
 
-
--- Get the contents of the given directory, removing "." and "..", and
--- prepending the directory path to the results.
---
--- That is, if the path is "abc" and it contains files "def" and
--- "ghi", you'll get back ["abc/def", "abc/ghi"].
-getDirectoryContentsFiltered :: FilePath -> IO [FilePath]
-getDirectoryContentsFiltered path = do
-  map (combine path) . filter f <$> getDirectoryContents path
-  where f "." = False
-        f ".." = False
-        f _ = True
-
--- Expand the given target into zero or more real targets.  Symbolic
--- links are discarded.  Directories are explored recursively.  Only
--- files are returned.
-expandTarget :: FilePath -> IO [FilePath]
-expandTarget filepath = do
-  pathStatus <- getSymbolicLinkStatus filepath
-  case isSymbolicLink pathStatus of
-    True -> return []
-    False -> do
-      case isDirectory pathStatus of
-        True -> do
-          contents <- getDirectoryContentsFiltered filepath
-          concat <$> mapM expandTarget contents
-        False -> do
-          return [filepath]
