@@ -76,7 +76,8 @@ check fastMatch (targetPath, targetStatus) (path, pathStatus) = do
   -- If somehow the target and the path are the same file, return
   -- not-a-witness.  This can happen if the potential match is a
   -- hardlink to the target file.
-  if fileID targetStatus == fileID pathStatus
+  if      fileID targetStatus ==   fileID pathStatus
+     && deviceID targetStatus == deviceID pathStatus
     then return False
     else
       -- The file sizes must match.
