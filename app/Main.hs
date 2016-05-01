@@ -3,6 +3,8 @@
 module Main where
 
 import Control.Monad
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Maybe
 import Options.Applicative
 
 import Files
@@ -12,28 +14,36 @@ import Witness
 main :: IO ()
 main = do
   opts <- execParser (info (helper <*> optionsParser) (progDesc "safe-delete"))
-  expandedTargets <- concat <$> mapM expandTarget (optionTargets opts)
 
-  let numTargets = length expandedTargets
-  putStrLn ("checking " ++ show numTargets ++ " files...")
+  void $ runMaybeT $ do
+    when (null (optionTargets opts)) $ do
+      liftIO $ putStrLn "No targets given (see --help)"
+      mzero
 
-  maybeIndex <-
-    if optionIndex opts
-    then Just <$> buildIndex (optionBaseDir opts)
-    else pure Nothing
+    liftIO $ do
+      expandedTargets <- concat <$> mapM expandTarget (optionTargets opts)
 
-  let doTarget tally target = do
-        maybeWitness <- findWitness (optionFastMatch opts) maybeIndex target (optionBaseDir opts)
-        case maybeWitness of
-          Nothing -> do putStrLn ("no witness for " ++ target)
-                        return tally
-          Just _ -> return $! tally + 1
+      let numTargets = length expandedTargets
+      putStrLn (show numTargets ++ " files to check")
 
-  finalTally <- foldM doTarget 0 expandedTargets
+      maybeIndex <-
+        if optionIndex opts
+        then do putStrLn "building index..."
+                Just <$> buildIndex (optionBaseDir opts)
+        else pure Nothing
 
-  putStrLn ("checked " ++ show numTargets ++ " files")
-  putStrLn ("found " ++ show finalTally ++ " witnesses")
-  putStrLn ("found " ++ show (numTargets - finalTally) ++ " unwitnessed files")  
+      let doTarget tally target = do
+            maybeWitness <- findWitness (optionFastMatch opts) maybeIndex target (optionBaseDir opts)
+            case maybeWitness of
+              Nothing -> do putStrLn ("no witness for " ++ target)
+                            return tally
+              Just _ -> return $! tally + 1
+
+      finalTally <- foldM doTarget 0 expandedTargets
+
+      putStrLn ("checked " ++ show numTargets ++ " files")
+      putStrLn ("found " ++ show finalTally ++ " witnesses")
+      putStrLn ("found " ++ show (numTargets - finalTally) ++ " unwitnessed files")
 
 data Options = Options {
     optionBaseDir :: FilePath
@@ -45,7 +55,7 @@ data Options = Options {
 
 optionsParser :: Parser Options
 optionsParser =
-  Options <$> strOption (long "base" <> metavar "DIR" <> value "." <>
+  Options <$> strOption (long "base" <> short 'b' <> metavar "DIR" <> value "." <>
                 help "Base directory to search for witnesses")
           <*> switch (long "dry-run" <> short 'n' <>
                 help "Don't delete any files")
@@ -53,4 +63,4 @@ optionsParser =
                 help "Only match file names and sizes, not contents")
           <*> switch (long "index" <> short 'i' <>
                 help "Index base directory before searching")
-          <*> many (strArgument (metavar "FILE ..."))
+          <*> many (strArgument (metavar "TARGET ..."))

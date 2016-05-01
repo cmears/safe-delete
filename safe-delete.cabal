@@ -36,6 +36,7 @@ executable safe-delete-exe
                      , optparse-applicative >= 0.11.0.2
                      , safe-delete
                      , text >= 1.2.1.3
+                     , transformers >= 0.4.2.0
   hs-source-dirs:      app
   default-language:    Haskell2010
   ghc-options:         -rtsopts -Wall -threaded
